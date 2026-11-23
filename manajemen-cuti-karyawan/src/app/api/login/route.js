@@ -7,7 +7,7 @@ export async function POST(request) {
  
     // 1. Cari user berdasarkan email saja
     const result = await pool.query(
-    "SELECT id, nama, email, password FROM users WHERE email = $1",
+    "SELECT user_id, nama, email, password FROM users WHERE email = $1",
     [email]
     );
 

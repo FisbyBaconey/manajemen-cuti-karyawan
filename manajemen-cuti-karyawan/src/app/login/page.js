@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-// import SignIn from "@/app/signin";
 
 export default function login() {
   const router = useRouter();
@@ -44,7 +43,7 @@ export default function login() {
     <div className="bg-white">
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">
-          <label htmlFor="email">Email Address</label>
+          <label htmlFor="email">Alamat E-mail</label>
 
           <div className="input-wrapper">
             <span className="input-icon">✉</span>
@@ -86,7 +85,7 @@ export default function login() {
         className="auth-button"
         disabled={loading}
         >
-          {loading ? "Signing in..." : "Login to Account"}
+          {loading ? "Signing in..." : "Login ke Akun"}
           {!loading && <span>→</span>}
         </button>
       </form>
