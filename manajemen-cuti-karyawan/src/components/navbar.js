@@ -5,9 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const pathLink = [
-  { nama: "Beranda", path: "/" },
+//   { nama: "Beranda", path: "/" },
   { nama: "Daftar", path: "/signin" },
-  { nama: "Login", path: "/login" },
+  { nama: "Login", path: "/" },
 ];
 
 export default function navbar() {

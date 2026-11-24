@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function SignIn() {
     const router = useRouter();
@@ -75,7 +76,7 @@ export default function SignIn() {
                     <input
                         id="password"
                         type="password"
-                        placeholder="••••••••"
+                        placeholder="Minimal 8 Karakter"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -88,6 +89,9 @@ export default function SignIn() {
                     {loading ? "Menyimpan..." : "Daftar"}
                 </button>
             </form>
+            <Link
+            href="/"
+            >Sudah memiliki akun?</Link>
         </div>
     );
 }
