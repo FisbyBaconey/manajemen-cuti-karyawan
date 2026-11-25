@@ -12,7 +12,7 @@ const allLinks = [
   // When logged in (filtered by role: 'admin', 'ketdiv', 'hrd', 'user')
   { nama: "Dashboard", path: "/dashboard", roles: ["admin", "ketdiv", "hrd", "user"] },
   { nama: "Profil", path: "/profil", roles: ["admin", "ketdiv", "hrd", "user"] },
-  { nama: "Pengajuan Cuti", path: "/cuti/ajukan", roles: ["user", "ketdiv"] },
+  { nama: "Pengajuan Cuti", path: "/ajukanCuti", roles: ["user", "ketdiv"] },
   { nama: "Verifikasi", path: "/verifikasi", roles: ["ketdiv"] },
   { nama: "Persetujuan Final", path: "/persetujuan", roles: ["hrd"] },
   { nama: "Kelola Data", path: "/admin", roles: ["admin"] },

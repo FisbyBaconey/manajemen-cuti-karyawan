@@ -49,6 +49,11 @@ CREATE TABLE IF NOT EXISTS cuti (
 		ON DELETE CASCADE
 );
 
+ALTER TABLE cuti
+ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+ADD COLUMN IF NOT EXISTS catatan_ketdiv TEXT,
+ADD COLUMN IF NOT EXISTS catatan_hrd TEXT;
+
 INSERT INTO divisi(nama_divisi, deskripsi_divisi) VALUES
 	('None', 'Tidak ada Divisi'),
 	('IT', 'Divisi yang berfokus pada perkembangan teknologi kantor'),
@@ -72,5 +77,6 @@ INSERT INTO users(nama, email, password) VALUES
 -- DROP TABLE IF EXISTS divisi CASCADE;
 SELECT * FROM users;
 SELECT * FROM divisi;
+SELECT * FROM cuti;
 
 
