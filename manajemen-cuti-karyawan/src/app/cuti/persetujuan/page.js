@@ -3,30 +3,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function PersetujuanPage() {
+export default function RiwayatCutiPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [requests, setRequests] = useState([]);
-  const [notesById, setNotesById] = useState({});
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [history, setHistory] = useState([]);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [expandedId, setExpandedId] = useState(null);
+  const [cancelReasons, setCancelReasons] = useState({});
   const [pesan, setPesan] = useState("");
   const [loading, setLoading] = useState(true);
 
-  async function loadRequests(currentUser) {
+  async function loadHistory(currentUser) {
     try {
-      const res = await fetch("/api/cuti/verifikasi", {
+      const res = await fetch("/api/cuti/riwayat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: currentUser.role,
-          userId: currentUser.user_id,
-        }),
+        body: JSON.stringify({ userId: currentUser.user_id }),
       });
 
       const data = await res.json();
-      if (res.ok && Array.isArray(data.requests)) {
-        setRequests(data.requests);
+      if (res.ok && Array.isArray(data.history)) {
+        setHistory(data.history);
       }
     } catch (err) {
       console.error(err);
@@ -38,231 +35,179 @@ export default function PersetujuanPage() {
   useEffect(() => {
     const saved = localStorage.getItem("user");
     if (!saved || saved === "undefined") {
-      localStorage.removeItem("user");
       router.replace("/");
       return;
     }
 
-    let parsedUser;
+    let parsed;
     try {
-      parsedUser = JSON.parse(saved);
+      parsed = JSON.parse(saved);
     } catch {
-      localStorage.removeItem("user");
       router.replace("/");
       return;
     }
 
-    if (!parsedUser?.user_id) {
-      localStorage.removeItem("user");
+    if (!parsed?.user_id) {
       router.replace("/");
       return;
     }
 
-    if (parsedUser.role !== "hrd") {
-      router.replace("/dashboard");
-      return;
-    }
-
-    setUser(parsedUser);
-    loadRequests(parsedUser);
+    setUser(parsed);
+    loadHistory(parsed);
   }, [router]);
 
-  const filteredRequests = useMemo(() => {
-    if (statusFilter === "ALL") return requests;
-    return requests.filter((item) => item.status === statusFilter);
-  }, [requests, statusFilter]);
+  const filteredHistory = useMemo(() => {
+    if (statusFilter === "ALL") return history;
+    return history.filter((item) => (item.status || "Pending") === statusFilter);
+  }, [history, statusFilter]);
 
-  function canApproveOrReject(item) {
-    return item.status === "Approved by Leader" || item.status === "Pending";
+  async function handleCancel(cutiId) {
+    setPesan("");
+    const reason = (cancelReasons[cutiId] || "").trim();
+
+    if (!reason) {
+      setPesan("Alasan pembatalan wajib diisi.");
+      return;
+    }
+
+    const res = await fetch("/api/cuti/riwayat", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cuti_id: cutiId,
+        userId: user.user_id,
+        alasan_batal: reason,
+      }),
+    });
+
+    const data = await res.json();
+    setPesan(data.message || "");
+    if (res.ok) {
+      setCancelReasons((prev) => ({ ...prev, [cutiId]: "" }));
+      await loadHistory(user);
+    }
   }
 
-  function toggleSelect(cutiId) {
-    setSelectedIds((prev) =>
-      prev.includes(cutiId)
-        ? prev.filter((id) => id !== cutiId)
-        : [...prev, cutiId]
+  function renderTimeline(item) {
+    const status = item.status || "Pending";
+    const step1 = `1. Diajukan pada ${new Date(item.tanggal_pengajuan).toLocaleDateString("id-ID")}`;
+
+    let step2 = `2. Verifikasi Ketua Divisi (${item.ketua_nama || "Atasan"}): Menunggu`;
+    if (status === "Approved by Leader" || status === "Approved") {
+      step2 = `2. Verifikasi Ketua Divisi (${item.ketua_nama || "Atasan"}): Disetujui`;
+    } else if (status === "Rejected" && item.catatan_ketdiv && !item.catatan_hrd) {
+      step2 = `2. Verifikasi Ketua Divisi (${item.ketua_nama || "Atasan"}): Ditolak`;
+    } else if (status === "Cancelled") {
+      step2 = "2. Verifikasi Ketua Divisi: Dibatalkan sebelum diproses";
+    }
+
+    let step3 = "3. Persetujuan Final HRD: Menunggu";
+    if (status === "Approved") {
+      step3 = "3. Persetujuan Final HRD: Disetujui (Final)";
+    } else if (status === "Rejected") {
+      step3 = "3. Persetujuan Final HRD: Ditolak";
+    } else if (status === "Cancelled") {
+      step3 = "3. Persetujuan Final HRD: Dibatalkan";
+    }
+
+    return (
+      <ul>
+        <li>{step1}</li>
+        <li>{step2}</li>
+        <li>{step3}</li>
+      </ul>
     );
   }
 
-  async function handleAction(cutiId, action) {
-    setPesan("");
-    const catatan = notesById[cutiId] || "";
-
-    if (action === "reject" && !catatan.trim()) {
-      setPesan("Catatan wajib diisi jika menolak pengajuan.");
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/cuti/verifikasi", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cuti_id: cutiId,
-          role: user.role,
-          action,
-          catatan,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setPesan(data.message || "Gagal memproses persetujuan final.");
-        return;
-      }
-
-      setPesan(data.message);
-      setNotesById((prev) => ({ ...prev, [cutiId]: "" }));
-      setSelectedIds((prev) => prev.filter((id) => id !== cutiId));
-      await loadRequests(user);
-    } catch (err) {
-      console.error(err);
-      setPesan("Terjadi kesalahan saat memproses persetujuan final.");
-    }
-  }
-
-  async function handleBulkApprove() {
-    if (selectedIds.length === 0) return;
-    setPesan("");
-
-    try {
-      const res = await fetch("/api/cuti/verifikasi", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cuti_ids: selectedIds,
-          role: user.role,
-          action: "approve",
-          catatan: "Disetujui secara massal oleh HRD",
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setPesan(data.message || "Gagal melakukan multi-approve.");
-        return;
-      }
-
-      setPesan(data.message);
-      setSelectedIds([]);
-      await loadRequests(user);
-    } catch (err) {
-      console.error(err);
-      setPesan("Terjadi kesalahan saat memproses multi-approve.");
-    }
-  }
-
-  if (loading) return <p>Memuat halaman persetujuan final...</p>;
+  if (loading) return <p>Memuat riwayat cuti...</p>;
   if (!user) return null;
 
   return (
     <div>
-      <h1>Persetujuan Final Cuti (HRD)</h1>
+      <h1>Riwayat Pengajuan Cuti</h1>
 
       <div>
-        <label htmlFor="filter-status">Filter Status: </label>
+        <label htmlFor="filter-riwayat">Filter Status: </label>
         <select
-          id="filter-status"
+          id="filter-riwayat"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="ALL">Semua Status</option>
-          <option value="Approved by Leader">Approved by Leader (Menunggu HRD)</option>
-          <option value="Pending">Pending (Langsung ke HRD / Belum Diverifikasi)</option>
+          <option value="Pending">Pending</option>
+          <option value="Approved by Leader">Approved by Leader</option>
           <option value="Approved">Approved</option>
           <option value="Rejected">Rejected</option>
           <option value="Cancelled">Cancelled</option>
         </select>
-
-        {selectedIds.length > 0 && (
-          <button type="button" onClick={handleBulkApprove}>
-            Multi-Approve ({selectedIds.length} terpilih)
-          </button>
-        )}
       </div>
 
       {pesan && <p>{pesan}</p>}
 
-      {filteredRequests.length === 0 ? (
-        <p>Tidak ada pengajuan cuti untuk ditampilkan.</p>
+      {filteredHistory.length === 0 ? (
+        <p>Belum ada riwayat pengajuan cuti.</p>
       ) : (
-        filteredRequests.map((item) => {
-          const actionable = canApproveOrReject(item);
+        filteredHistory.map((item) => {
+          const isExpanded = expandedId === item.cuti_id;
+          const isPending = (item.status || "Pending") === "Pending";
 
           return (
             <div key={item.cuti_id}>
               <hr />
-              {actionable && (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(item.cuti_id)}
-                    onChange={() => toggleSelect(item.cuti_id)}
-                  />
-                  Pilih untuk Multi-Approve
-                </label>
-              )}
-
-              <h3>
-                {item.pemohon_nama} — {item.jenis_cuti}
-              </h3>
-              <p>Status: {item.status}</p>
-              <p>Divisi: {item.nama_divisi || "-"}</p>
-              <p>Sisa Kuota Cuti Pemohon: {item.lama_waktu_cuti ?? "-"} hari</p>
+              <h3>{item.jenis_cuti}</h3>
+              <p>Status: {item.status || "Pending"}</p>
               <p>
-                Tanggal Pengajuan:{" "}
-                {new Date(item.tanggal_pengajuan).toLocaleDateString("id-ID")}
-              </p>
-              <p>
-                Periode:{" "}
-                {new Date(item.mulai_cuti).toLocaleDateString("id-ID")} s/d{" "}
+                Periode: {new Date(item.mulai_cuti).toLocaleDateString("id-ID")} s/d{" "}
                 {new Date(item.selesai_cuti).toLocaleDateString("id-ID")}
               </p>
               <p>Alasan: {item.alasan}</p>
               <p>Rekan Pengganti: {item.rekan_nama || item.rekan_id}</p>
-              <p>Catatan Tugas: {item.catatan_tugas}</p>
-              <p>Alamat Cuti: {item.alamat_cuti}</p>
-              <p>Nomor Darurat: {item.nomor_darurat}</p>
-              {item.surat_lampiran && <p>Lampiran: {item.surat_lampiran}</p>}
 
-              <div>
-                <p>
-                  <strong>Info Verifikasi Ketua Divisi:</strong>
-                </p>
-                <p>Ketua Divisi: {item.ketua_nama || "-"}</p>
-                <p>Catatan Ketua Divisi: {item.catatan_ketdiv || "-"}</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setExpandedId(isExpanded ? null : item.cuti_id)}
+              >
+                {isExpanded ? "Sembunyikan Detail" : "Lihat Detail & Timeline"}
+              </button>
 
-              {item.catatan_hrd && <p>Catatan HRD: {item.catatan_hrd}</p>}
-
-              {actionable && (
+              {isExpanded && (
                 <div>
-                  <label htmlFor={`note-hrd-${item.cuti_id}`}>
-                    Catatan HRD (opsional untuk approve, wajib untuk reject)
+                  <h4>Detail Pengajuan & Handover</h4>
+                  <p>Catatan Tugas (Handover): {item.catatan_tugas}</p>
+                  <p>Alamat Selama Cuti: {item.alamat_cuti}</p>
+                  <p>Nomor Darurat: {item.nomor_darurat}</p>
+                  <p>Lampiran / Surat Dokter: {item.surat_lampiran || "-"}</p>
+                  {item.catatan_ketdiv && (
+                    <p>Catatan Ketua Divisi: {item.catatan_ketdiv}</p>
+                  )}
+                  {item.catatan_hrd && (
+                    <p>Catatan HRD / Pembatalan: {item.catatan_hrd}</p>
+                  )}
+
+                  <h4>Timeline Approval</h4>
+                  {renderTimeline(item)}
+                </div>
+              )}
+
+              {isPending && (
+                <div>
+                  <label htmlFor={`cancel-reason-${item.cuti_id}`}>
+                    Alasan Pembatalan (Wajib):
                   </label>
-                  <br />
-                  <textarea
-                    id={`note-hrd-${item.cuti_id}`}
-                    value={notesById[item.cuti_id] || ""}
+                  <input
+                    id={`cancel-reason-${item.cuti_id}`}
+                    type="text"
+                    placeholder="Tulis alasan pembatalan..."
+                    value={cancelReasons[item.cuti_id] || ""}
                     onChange={(e) =>
-                      setNotesById((prev) => ({
+                      setCancelReasons((prev) => ({
                         ...prev,
                         [item.cuti_id]: e.target.value,
                       }))
                     }
                   />
-                  <br />
-                  <button
-                    type="button"
-                    onClick={() => handleAction(item.cuti_id, "approve")}
-                  >
-                    Approve Final
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAction(item.cuti_id, "reject")}
-                  >
-                    Reject
+                  <button type="button" onClick={() => handleCancel(item.cuti_id)}>
+                    Batalkan Pengajuan
                   </button>
                 </div>
               )}

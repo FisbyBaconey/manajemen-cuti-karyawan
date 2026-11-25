@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 
+function countWorkingDaysOnly(startDate, endDate) {
+  let days = 0;
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  while (cursor <= end) {
+    const d = cursor.getDay();
+    if (d !== 0 && d !== 6) days += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return Math.max(1, days);
+}
+
 export async function POST(request) {
   try {
     const { userId } = await request.json();
@@ -13,8 +28,14 @@ export async function POST(request) {
     }
 
     const res = await pool.query(
-      `SELECT c.*, r.nama AS rekan_nama
+      `SELECT c.*,
+              r.nama AS rekan_nama,
+              d.nama_divisi,
+              k.nama AS ketua_nama
        FROM cuti c
+       JOIN users u ON c.user_id = u.user_id
+       LEFT JOIN divisi d ON u.divisi_id = d.divisi_id
+       LEFT JOIN users k ON d.ketua_divisi_id = k.user_id
        LEFT JOIN users r ON c.rekan_id = r.user_id
        WHERE c.user_id = $1
        ORDER BY c.tanggal_pengajuan DESC`,
@@ -42,6 +63,13 @@ export async function PATCH(request) {
       );
     }
 
+    if (!alasan_batal || !alasan_batal.trim()) {
+      return NextResponse.json(
+        { message: "Alasan pembatalan wajib diisi" },
+        { status: 400 }
+      );
+    }
+
     const cutiRes = await pool.query(
       "SELECT * FROM cuti WHERE cuti_id = $1 AND user_id = $2",
       [cuti_id, userId]
@@ -64,26 +92,22 @@ export async function PATCH(request) {
 
     await pool.query(
       `UPDATE cuti
-       SET status = 'Cancelled', catatan_hrd = COALESCE($1, catatan_hrd)
+       SET status = 'Cancelled', catatan_hrd = $1
        WHERE cuti_id = $2`,
-      [alasan_batal ? `Dibatalkan: ${alasan_batal}` : "Dibatalkan oleh pemohon", cuti_id]
+      [`Dibatalkan oleh pemohon: ${alasan_batal.trim()}`, cuti_id]
     );
 
     if (item.jenis_cuti === "Cuti Tahunan") {
-      const start = new Date(item.mulai_cuti);
-      const end = new Date(item.selesai_cuti);
-      const days = Math.max(
-        1,
-        Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      );
-
+      const days = countWorkingDaysOnly(item.mulai_cuti, item.selesai_cuti);
       await pool.query(
         "UPDATE users SET lama_waktu_cuti = lama_waktu_cuti + $1 WHERE user_id = $2",
         [days, userId]
       );
     }
 
-    return NextResponse.json({ message: "Pengajuan cuti dibatalkan dan kuota dikembalikan" });
+    return NextResponse.json({
+      message: "Pengajuan cuti dibatalkan dan kuota dikembalikan",
+    });
   } catch (error) {
     console.error("PATCH /api/cuti/riwayat error:", error);
     return NextResponse.json(
