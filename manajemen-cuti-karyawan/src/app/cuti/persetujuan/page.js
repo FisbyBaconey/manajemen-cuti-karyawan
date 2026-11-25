@@ -3,6 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+function getStatusBadgeClass(status) {
+  switch (status) {
+    case "Approved":
+      return "bg-[#28a745] text-white";
+    case "Approved by Leader":
+      return "bg-[#007bff] text-white";
+    case "Rejected":
+    case "Cancelled":
+      return "bg-[#dc3545] text-white";
+    case "Pending":
+    default:
+      return "bg-amber-400 text-slate-900";
+  }
+}
+
 export default function RiwayatCutiPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -111,110 +126,216 @@ export default function RiwayatCutiPage() {
     }
 
     return (
-      <ul>
-        <li>{step1}</li>
-        <li>{step2}</li>
-        <li>{step3}</li>
+      <ul className="mt-2 space-y-1.5 border-l-2 border-[#007bff]/40 pl-3.5 text-xs text-slate-700">
+        <li className="font-medium">{step1}</li>
+        <li className="font-medium">{step2}</li>
+        <li className="font-medium">{step3}</li>
       </ul>
     );
   }
 
-  if (loading) return <p>Memuat riwayat cuti...</p>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f4f6f9] p-6">
+        <div className="mx-auto max-w-5xl rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-xs">
+          Memuat riwayat cuti...
+        </div>
+      </div>
+    );
+  }
   if (!user) return null;
 
   return (
-    <div>
-      <h1>Riwayat Pengajuan Cuti</h1>
+    <div className="min-h-screen bg-[#f4f6f9] px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-5xl space-y-5">
+        {/* Header & Filter */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">
+              Riwayat Pengajuan Cuti
+            </h1>
+            <nav className="mt-0.5 text-xs text-slate-500">
+              <span className="text-[#007bff]">Dashboard</span> /{" "}
+              <span className="text-slate-700">Riwayat Pengajuan Cuti</span>
+            </nav>
+          </div>
 
-      <div>
-        <label htmlFor="filter-riwayat">Filter Status: </label>
-        <select
-          id="filter-riwayat"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="ALL">Semua Status</option>
-          <option value="Pending">Pending</option>
-          <option value="Approved by Leader">Approved by Leader</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <label
+              htmlFor="filter-riwayat"
+              className="text-xs font-semibold text-slate-700"
+            >
+              Filter Status:
+            </label>
+            <select
+              id="filter-riwayat"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs focus:border-[#007bff] focus:outline-none"
+            >
+              <option value="ALL">Semua Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved by Leader">Approved by Leader</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        {pesan && (
+          <div className="rounded border border-slate-300 bg-white px-4 py-3 text-xs font-semibold text-slate-800 shadow-xs">
+            {pesan}
+          </div>
+        )}
+
+        {filteredHistory.length === 0 ? (
+          <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-xs">
+            Belum ada riwayat pengajuan cuti.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredHistory.map((item) => {
+              const isExpanded = expandedId === item.cuti_id;
+              const currentStatus = item.status || "Pending";
+              const isPending = currentStatus === "Pending";
+
+              return (
+                <div
+                  key={item.cuti_id}
+                  className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-xs"
+                >
+                  <div className="flex flex-col justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-3.5 sm:flex-row sm:items-center">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-800">
+                        {item.jenis_cuti}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Periode:{" "}
+                        <span className="font-medium text-slate-700">
+                          {new Date(item.mulai_cuti).toLocaleDateString("id-ID")} s/d{" "}
+                          {new Date(item.selesai_cuti).toLocaleDateString("id-ID")}
+                        </span>
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex w-fit items-center rounded px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                        currentStatus
+                      )}`}
+                    >
+                      {currentStatus}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 p-5 text-xs sm:text-sm">
+                    <div className="grid grid-cols-1 gap-2 text-slate-700 sm:grid-cols-2">
+                      <p>
+                        <strong className="font-semibold text-slate-900">
+                          Alasan:
+                        </strong>{" "}
+                        {item.alasan}
+                      </p>
+                      <p>
+                        <strong className="font-semibold text-slate-900">
+                          Rekan Pengganti:
+                        </strong>{" "}
+                        {item.rekan_nama || item.rekan_id}
+                      </p>
+                    </div>
+
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedId(isExpanded ? null : item.cuti_id)
+                        }
+                        className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        {isExpanded
+                          ? "Sembunyikan Detail"
+                          : "Lihat Detail & Timeline"}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-800">
+                          Detail Pengajuan & Handover
+                        </h4>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <p>
+                            <strong>Catatan Tugas (Handover):</strong>{" "}
+                            {item.catatan_tugas}
+                          </p>
+                          <p>
+                            <strong>Alamat Selama Cuti:</strong> {item.alamat_cuti}
+                          </p>
+                          <p>
+                            <strong>Nomor Darurat:</strong> {item.nomor_darurat}
+                          </p>
+                          <p>
+                            <strong>Lampiran / Surat Dokter:</strong>{" "}
+                            {item.surat_lampiran || "-"}
+                          </p>
+                        </div>
+
+                        {item.catatan_ketdiv && (
+                          <p className="mt-2">
+                            <strong>Catatan Ketua Divisi:</strong>{" "}
+                            {item.catatan_ketdiv}
+                          </p>
+                        )}
+                        {item.catatan_hrd && (
+                          <p className="mt-1">
+                            <strong>Catatan HRD / Pembatalan:</strong>{" "}
+                            {item.catatan_hrd}
+                          </p>
+                        )}
+
+                        <h4 className="mt-4 text-xs font-bold uppercase tracking-wide text-slate-800">
+                          Timeline Approval
+                        </h4>
+                        {renderTimeline(item)}
+                      </div>
+                    )}
+
+                    {isPending && (
+                      <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center">
+                        <label
+                          htmlFor={`cancel-reason-${item.cuti_id}`}
+                          className="shrink-0 text-xs font-semibold text-slate-700"
+                        >
+                          Alasan Pembatalan (Wajib):
+                        </label>
+                        <input
+                          id={`cancel-reason-${item.cuti_id}`}
+                          type="text"
+                          placeholder="Tulis alasan pembatalan..."
+                          value={cancelReasons[item.cuti_id] || ""}
+                          onChange={(e) =>
+                            setCancelReasons((prev) => ({
+                              ...prev,
+                              [item.cuti_id]: e.target.value,
+                            }))
+                          }
+                          className="flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-[#007bff] focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCancel(item.cuti_id)}
+                          className="shrink-0 rounded bg-[#dc3545] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                        >
+                          Batalkan Pengajuan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {pesan && <p>{pesan}</p>}
-
-      {filteredHistory.length === 0 ? (
-        <p>Belum ada riwayat pengajuan cuti.</p>
-      ) : (
-        filteredHistory.map((item) => {
-          const isExpanded = expandedId === item.cuti_id;
-          const isPending = (item.status || "Pending") === "Pending";
-
-          return (
-            <div key={item.cuti_id}>
-              <hr />
-              <h3>{item.jenis_cuti}</h3>
-              <p>Status: {item.status || "Pending"}</p>
-              <p>
-                Periode: {new Date(item.mulai_cuti).toLocaleDateString("id-ID")} s/d{" "}
-                {new Date(item.selesai_cuti).toLocaleDateString("id-ID")}
-              </p>
-              <p>Alasan: {item.alasan}</p>
-              <p>Rekan Pengganti: {item.rekan_nama || item.rekan_id}</p>
-
-              <button
-                type="button"
-                onClick={() => setExpandedId(isExpanded ? null : item.cuti_id)}
-              >
-                {isExpanded ? "Sembunyikan Detail" : "Lihat Detail & Timeline"}
-              </button>
-
-              {isExpanded && (
-                <div>
-                  <h4>Detail Pengajuan & Handover</h4>
-                  <p>Catatan Tugas (Handover): {item.catatan_tugas}</p>
-                  <p>Alamat Selama Cuti: {item.alamat_cuti}</p>
-                  <p>Nomor Darurat: {item.nomor_darurat}</p>
-                  <p>Lampiran / Surat Dokter: {item.surat_lampiran || "-"}</p>
-                  {item.catatan_ketdiv && (
-                    <p>Catatan Ketua Divisi: {item.catatan_ketdiv}</p>
-                  )}
-                  {item.catatan_hrd && (
-                    <p>Catatan HRD / Pembatalan: {item.catatan_hrd}</p>
-                  )}
-
-                  <h4>Timeline Approval</h4>
-                  {renderTimeline(item)}
-                </div>
-              )}
-
-              {isPending && (
-                <div>
-                  <label htmlFor={`cancel-reason-${item.cuti_id}`}>
-                    Alasan Pembatalan (Wajib):
-                  </label>
-                  <input
-                    id={`cancel-reason-${item.cuti_id}`}
-                    type="text"
-                    placeholder="Tulis alasan pembatalan..."
-                    value={cancelReasons[item.cuti_id] || ""}
-                    onChange={(e) =>
-                      setCancelReasons((prev) => ({
-                        ...prev,
-                        [item.cuti_id]: e.target.value,
-                      }))
-                    }
-                  />
-                  <button type="button" onClick={() => handleCancel(item.cuti_id)}>
-                    Batalkan Pengajuan
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
     </div>
   );
 }
