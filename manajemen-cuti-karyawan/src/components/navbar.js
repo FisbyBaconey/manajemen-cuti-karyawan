@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 const allLinks = [
   { nama: "Login", path: "/", guestOnly: true },
-  { nama: "Daftar", path: "/signin", guestOnly: true },
+  { nama: "Daftar", path: "/register", guestOnly: true },
 
   { nama: "Dashboard", path: "/dashboard", roles: ["admin", "ketdiv", "hrd", "user"] },
   { nama: "Profil", path: "/profil", roles: ["admin", "ketdiv", "hrd", "user"] },

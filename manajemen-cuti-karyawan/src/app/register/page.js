@@ -25,16 +25,27 @@ export default function SignIn() {
                 body: JSON.stringify({ nama, email, password }),
             });
 
-            const data = await res.json();
-
-            if (!res.ok) {
-                setPesan(data.message || "Gagal membuat akun.");
+            const rawText = await res.text();
+            let data = {};
+            try {
+                data = rawText ? JSON.parse(rawText) : {};
+            } catch {
+                console.error("Non-JSON response from /api/register:", rawText.slice(0, 200));
+                setPesan(`Error ${res.status}: Route /api/register tidak ditemukan atau bukan JSON.`);
                 return;
             }
 
-            setPesan("Akun berhasil dibuat!");
-            router.push("/");
+            if (!res.ok) {
+                setPesan(data.detail ? `${data.message} (${data.detail})` : (data.message || "Gagal membuat akun."));
+                return;
+            }
+
+            setPesan(data.message || "Akun berhasil dibuat! Menunggu persetujuan Admin.");
+            setNama("");
+            setEmail("");
+            setPassword("");
         } catch (error) {
+            console.error("Fetch /api/register error:", error);
             setPesan("Tidak dapat terhubung ke server. Coba lagi.");
         } finally {
             setLoading(false);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PendingList from "@/components/pendingList";
 
 export default function ManageUser() {
   const router = useRouter();
@@ -142,6 +143,7 @@ export default function ManageUser() {
 
   return (
     <div>
+      <PendingList/>
       <h1>Panel Admin</h1>
       {pesan && <p>{pesan}</p>}
 

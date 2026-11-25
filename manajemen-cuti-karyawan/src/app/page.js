@@ -94,7 +94,7 @@ export default function LoginPage() {
           {!loading && <span>→</span>}
         </button>
       </form>
-      <Link href="/signin">Belum memiliki akun?</Link>
+      <Link href="/register">Belum memiliki akun?</Link>
     </div>
   );
 }
