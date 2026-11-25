@@ -49,7 +49,7 @@ export default function Navbar() {
   });
 
   return (
-    <nav className="p-2 bg-green-200 border-green-300 border-b font-bold font-sans flex flex-row justify-between items-center">
+    <nav className="p-2 bg-blue-500 border-blue-600 text-white border-b font-bold font-sans flex flex-row justify-between items-center">
       <div className="flex flex-row items-center gap-4">
         <Link className="text-2xl" href={user ? "/dashboard" : "/"}>
           E-Cuti Hasan Office
@@ -65,8 +65,8 @@ export default function Navbar() {
                 <Link
                   className={
                     isActive
-                      ? "flex flex-col text-black font-bold border-b-2 border-y-olive-800 pb-1"
-                      : "hover:text-green-900 transition"
+                      ? "flex flex-col text-white font-bold border-b-2 border-y-blue-800 pb-1"
+                      : "hover:text-blue-900 transition"
                   }
                   href={item.path}
                 >

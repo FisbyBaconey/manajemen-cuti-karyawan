@@ -1,339 +1,182 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function AjukanCuti() {
+function getStatusBadgeClass(status) {
+  switch (status) {
+    case "Approved":
+      return "bg-[#28a745] text-white";
+    case "Approved by Leader":
+      return "bg-[#007bff] text-white";
+    case "Rejected":
+    case "Cancelled":
+      return "bg-[#dc3545] text-white";
+    case "Pending":
+    default:
+      return "bg-amber-400 text-slate-900";
+  }
+}
+
+export default function RiwayatCutiPage() {
   const router = useRouter();
-
   const [user, setUser] = useState(null);
-  const [colleagues, setColleagues] = useState([]);
-
-  const [jenisCuti, setJenisCuti] = useState("Cuti Tahunan");
-  const [setengahHari, setSetengahHari] = useState(false);
-  const [mulaiCuti, setMulaiCuti] = useState("");
-  const [selesaiCuti, setSelesaiCuti] = useState("");
-  const [alasan, setAlasan] = useState("");
-  const [rekanId, setRekanId] = useState("");
-  const [catatanTugas, setCatatanTugas] = useState("");
-  const [alamatCuti, setAlamatCuti] = useState("");
-  const [nomorDarurat, setNomorDarurat] = useState("");
-  const [suratLampiran, setSuratLampiran] = useState("");
-
+  const [history, setHistory] = useState([]);
   const [pesan, setPesan] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  async function loadHistory(currentUser) {
+    try {
+      const res = await fetch("/api/cuti/riwayat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.user_id }),
+      });
+
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.history)) {
+        setHistory(data.history);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem("user");
     if (!saved || saved === "undefined") {
-      localStorage.removeItem("user");
       router.replace("/");
       return;
     }
 
-    let parsedUser;
+    let parsed;
     try {
-      parsedUser = JSON.parse(saved);
+      parsed = JSON.parse(saved);
     } catch {
-      localStorage.removeItem("user");
       router.replace("/");
       return;
     }
 
-    if (!parsedUser?.user_id) {
-      localStorage.removeItem("user");
+    if (!parsed?.user_id) {
       router.replace("/");
       return;
     }
 
-    setUser(parsedUser);
-
-    async function loadColleagues() {
-      try {
-        const res = await fetch("/api/cuti/ajukan");
-        const rawText = await res.text();
-
-        let data = {};
-        try {
-          data = rawText ? JSON.parse(rawText) : {};
-        } catch {
-          console.error(
-            "Expected JSON from /api/cuti/ajukan, received:",
-            rawText.slice(0, 200)
-          );
-          setPesan("Gagal memuat daftar rekan pengganti (respons server bukan JSON).");
-          return;
-        }
-
-        if (!res.ok) {
-          console.error("Failed to load colleagues:", data.message || res.status);
-          setPesan(data.message || "Gagal memuat daftar rekan pengganti.");
-          return;
-        }
-
-        if (Array.isArray(data.colleagues)) {
-          setColleagues(
-            data.colleagues.filter((item) => item.user_id !== parsedUser.user_id)
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        setPesan("Terjadi kesalahan saat memuat daftar rekan pengganti.");
-      }
-    }
-
-    loadColleagues();
+    setUser(parsed);
+    loadHistory(parsed);
   }, [router]);
 
-  const totalHari = useMemo(() => {
-    if (!mulaiCuti || !selesaiCuti) return 0;
-
-    const start = new Date(mulaiCuti);
-    const end = new Date(selesaiCuti);
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-      return 0;
-    }
-
-    let workingDays = 0;
-    const cursor = new Date(start);
-    cursor.setHours(0, 0, 0, 0);
-    const endOnly = new Date(end);
-    endOnly.setHours(0, 0, 0, 0);
-
-    while (cursor <= endOnly) {
-      const day = cursor.getDay();
-      if (day !== 0 && day !== 6) {
-        workingDays += 1;
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
-
-    if (workingDays === 0) return 0;
-    return setengahHari ? Math.max(0.5, workingDays - 0.5) : workingDays;
-  },
-  [mulaiCuti, selesaiCuti, setengahHari]);
-  
-  function handleReset() {
-    setJenisCuti("Cuti Tahunan");
-    setSetengahHari(false);
-    setMulaiCuti("");
-    setSelesaiCuti("");
-    setAlasan("");
-    setRekanId("");
-    setCatatanTugas("");
-    setAlamatCuti("");
-    setNomorDarurat("");
-    setSuratLampiran("");
+  async function handleCancel(cutiId) {
     setPesan("");
-  }
+    const res = await fetch("/api/cuti/riwayat", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cuti_id: cutiId,
+        userId: user.user_id,
+        alasan_batal: "Dibatalkan pengguna",
+      }),
+    });
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setPesan("");
-
-    if (!user?.user_id) {
-      setPesan("Sesi pengguna tidak ditemukan.");
-      return;
-    }
-
-    if (totalHari <= 0) {
-      setPesan("Tanggal selesai harus sama atau setelah tanggal mulai.");
-      return;
-    }
-
-    if (jenisCuti === "Cuti Sakit" && !suratLampiran.trim()) {
-      setPesan("Lampiran surat dokter wajib diisi untuk Cuti Sakit.");
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const res = await fetch("/api/cuti/ajukan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.user_id,
-          jenis_cuti: jenisCuti,
-          setengah_hari: setengahHari,
-          mulai_cuti: mulaiCuti,
-          selesai_cuti: selesaiCuti,
-          jumlah_hari: totalHari,
-          alasan,
-          rekan_id: rekanId,
-          catatan_tugas: catatanTugas,
-          alamat_cuti: alamatCuti,
-          nomor_darurat: nomorDarurat,
-          surat_lampiran: suratLampiran,
-        }),
-      });
-
-      const rawText = await res.text();
-      let data = {};
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch {
-        setPesan("Respons server tidak valid saat mengirim pengajuan cuti.");
-        return;
-      }
-
-      if (!res.ok) {
-        setPesan(data.message || "Gagal mengajukan cuti.");
-        return;
-      }
-
-      setPesan(data.message || "Pengajuan cuti berhasil dikirim!");
-      handleReset();
-    } catch (error) {
-      console.error(error);
-      setPesan("Terjadi kesalahan saat mengirim pengajuan cuti.");
-    } finally {
-      setSubmitting(false);
+    const data = await res.json();
+    setPesan(data.message || "");
+    if (res.ok) {
+      await loadHistory(user);
     }
   }
 
-  if (!user) return <p>Memuat halaman...</p>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f4f6f9] p-6">
+        <div className="mx-auto max-w-5xl rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-xs">
+          Memuat riwayat cuti...
+        </div>
+      </div>
+    );
+  }
+  if (!user) return null;
 
   return (
-    <div>
-      <h1>Form Pengajuan Cuti</h1>
-      <p>Tanggal Pengajuan: {new Date().toLocaleDateString("id-ID")}</p>
-      <p>Total Hari Cuti: {totalHari} hari</p>
-
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="jenis_cuti">Jenis Cuti</label>
-          <select
-            id="jenis_cuti"
-            value={jenisCuti}
-            onChange={(e) => setJenisCuti(e.target.value)}
-            required
-          >
-            <option value="Cuti Tahunan">Cuti Tahunan</option>
-            <option value="Cuti Sakit">Cuti Sakit</option>
-            <option value="Cuti Lainnya">Cuti Lainnya</option>
-          </select>
+    <div className="min-h-screen bg-[#f4f6f9] px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">
+            Riwayat Pengajuan Cuti
+          </h1>
+          <nav className="text-xs text-slate-500">
+            <span className="text-[#007bff]">Dashboard</span> /{" "}
+            <span className="text-slate-700">Riwayat Pengajuan Cuti</span>
+          </nav>
         </div>
 
-        <div>
-          <label htmlFor="setengah_hari">
-            <input
-              id="setengah_hari"
-              type="checkbox"
-              checked={setengahHari}
-              onChange={(e) => setSetengahHari(e.target.checked)}
-            />
-            Cuti Setengah Hari (0.5 hari)
-          </label>
-        </div>
+        {pesan && (
+          <div className="rounded border border-slate-300 bg-white px-4 py-3 text-xs font-semibold text-slate-800 shadow-xs">
+            {pesan}
+          </div>
+        )}
 
-        <div>
-          <label htmlFor="mulai_cuti">Tanggal Mulai</label>
-          <input
-            id="mulai_cuti"
-            type="date"
-            value={mulaiCuti}
-            onChange={(e) => setMulaiCuti(e.target.value)}
-            required
-          />
-        </div>
+        {history.length === 0 ? (
+          <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-xs">
+            Belum ada riwayat pengajuan cuti.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {history.map((item) => {
+              const currentStatus = item.status || "Pending";
 
-        <div>
-          <label htmlFor="selesai_cuti">Tanggal Selesai</label>
-          <input
-            id="selesai_cuti"
-            type="date"
-            value={selesaiCuti}
-            onChange={(e) => setSelesaiCuti(e.target.value)}
-            required
-          />
-        </div>
+              return (
+                <div
+                  key={item.cuti_id}
+                  className="rounded-md border border-slate-200 bg-white p-5 shadow-xs"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <h3 className="text-base font-bold text-slate-800">
+                      {item.jenis_cuti}
+                    </h3>
+                    <span
+                      className={`inline-flex items-center rounded px-2.5 py-0.5 text-xs font-semibold ${getStatusBadgeClass(
+                        currentStatus
+                      )}`}
+                    >
+                      {currentStatus}
+                    </span>
+                  </div>
 
-        <div>
-          <label htmlFor="alasan">Alasan Cuti</label>
-          <textarea
-            id="alasan"
-            value={alasan}
-            onChange={(e) => setAlasan(e.target.value)}
-            required
-          />
-        </div>
+                  <div className="mt-3 space-y-1.5 text-xs text-slate-700 sm:text-sm">
+                    <p>
+                      <strong>Periode:</strong>{" "}
+                      {new Date(item.mulai_cuti).toLocaleDateString("id-ID")}{" "}
+                      s/d{" "}
+                      {new Date(item.selesai_cuti).toLocaleDateString("id-ID")}
+                    </p>
+                    <p>
+                      <strong>Alasan:</strong> {item.alasan}
+                    </p>
+                    <p>
+                      <strong>Rekan Pengganti:</strong>{" "}
+                      {item.rekan_nama || item.rekan_id}
+                    </p>
+                  </div>
 
-        <div>
-          <label htmlFor="rekan_id">Rekan Pengganti (Handover)</label>
-          <select
-            id="rekan_id"
-            value={rekanId}
-            onChange={(e) => setRekanId(e.target.value)}
-            required
-          >
-            <option value="">-- Pilih Rekan Pengganti --</option>
-            {colleagues.map((col) => (
-              <option key={col.user_id} value={col.user_id}>
-                {col.nama} ({col.role})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="catatan_tugas">Catatan Tugas (Handover)</label>
-          <textarea
-            id="catatan_tugas"
-            value={catatanTugas}
-            onChange={(e) => setCatatanTugas(e.target.value)}
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="alamat_cuti">Alamat Selama Cuti</label>
-          <textarea
-            id="alamat_cuti"
-            value={alamatCuti}
-            onChange={(e) => setAlamatCuti(e.target.value)}
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="nomor_darurat">Nomor Darurat</label>
-          <input
-            id="nomor_darurat"
-            type="text"
-            value={nomorDarurat}
-            onChange={(e) => setNomorDarurat(e.target.value)}
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="surat_lampiran">
-            Surat Dokter / Lampiran {jenisCuti === "Cuti Sakit" ? "(Wajib)" : "(Opsional)"}
-          </label>
-          <input
-            id="surat_lampiran"
-            type="text"
-            placeholder="Link / nama file surat lampiran"
-            value={suratLampiran}
-            onChange={(e) => setSuratLampiran(e.target.value)}
-          />
-        </div>
-
-        {pesan && <p>{pesan}</p>}
-
-        <div>
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Mengirim..." : "Submit"}
-          </button>
-          <button type="button" onClick={handleReset}>
-            Reset
-          </button>
-          <button type="button" onClick={() => router.push("/dashboard")}>
-            Cancel
-          </button>
-        </div>
-      </form>
+                  {(item.status === "Pending" || !item.status) && (
+                    <div className="mt-4 border-t border-slate-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => handleCancel(item.cuti_id)}
+                        className="rounded bg-[#dc3545] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                      >
+                        Batalkan Pengajuan
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
