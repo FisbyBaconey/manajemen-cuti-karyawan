@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function VerifikasiCutiPage() {
+export default function PersetujuanPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [requests, setRequests] = useState([]);
   const [notesById, setNotesById] = useState({});
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [pesan, setPesan] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -56,7 +58,7 @@ export default function VerifikasiCutiPage() {
       return;
     }
 
-    if (parsedUser.role !== "ketdiv" && parsedUser.role !== "hrd") {
+    if (parsedUser.role !== "hrd") {
       router.replace("/dashboard");
       return;
     }
@@ -64,6 +66,23 @@ export default function VerifikasiCutiPage() {
     setUser(parsedUser);
     loadRequests(parsedUser);
   }, [router]);
+
+  const filteredRequests = useMemo(() => {
+    if (statusFilter === "ALL") return requests;
+    return requests.filter((item) => item.status === statusFilter);
+  }, [requests, statusFilter]);
+
+  function canApproveOrReject(item) {
+    return item.status === "Approved by Leader" || item.status === "Pending";
+  }
+
+  function toggleSelect(cutiId) {
+    setSelectedIds((prev) =>
+      prev.includes(cutiId)
+        ? prev.filter((id) => id !== cutiId)
+        : [...prev, cutiId]
+    );
+  }
 
   async function handleAction(cutiId, action) {
     setPesan("");
@@ -88,49 +107,112 @@ export default function VerifikasiCutiPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        setPesan(data.message || "Gagal memproses aksi.");
+        setPesan(data.message || "Gagal memproses persetujuan final.");
         return;
       }
 
       setPesan(data.message);
       setNotesById((prev) => ({ ...prev, [cutiId]: "" }));
+      setSelectedIds((prev) => prev.filter((id) => id !== cutiId));
       await loadRequests(user);
     } catch (err) {
       console.error(err);
-      setPesan("Terjadi kesalahan saat memproses pengajuan.");
+      setPesan("Terjadi kesalahan saat memproses persetujuan final.");
     }
   }
 
-  if (loading) return <p>Memuat data verifikasi...</p>;
+  async function handleBulkApprove() {
+    if (selectedIds.length === 0) return;
+    setPesan("");
+
+    try {
+      const res = await fetch("/api/cuti/verifikasi", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cuti_ids: selectedIds,
+          role: user.role,
+          action: "approve",
+          catatan: "Disetujui secara massal oleh HRD",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setPesan(data.message || "Gagal melakukan multi-approve.");
+        return;
+      }
+
+      setPesan(data.message);
+      setSelectedIds([]);
+      await loadRequests(user);
+    } catch (err) {
+      console.error(err);
+      setPesan("Terjadi kesalahan saat memproses multi-approve.");
+    }
+  }
+
+  if (loading) return <p>Memuat halaman persetujuan final...</p>;
   if (!user) return null;
 
   return (
     <div>
-      <h1>
-        {user.role === "hrd"
-          ? "Persetujuan Final Cuti (HRD)"
-          : "Verifikasi Pengajuan Cuti (Ketua Divisi)"}
-      </h1>
+      <h1>Persetujuan Final Cuti (HRD)</h1>
+
+      <div>
+        <label htmlFor="filter-status">Filter Status: </label>
+        <select
+          id="filter-status"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="ALL">Semua Status</option>
+          <option value="Approved by Leader">Approved by Leader (Menunggu HRD)</option>
+          <option value="Pending">Pending (Langsung ke HRD / Belum Diverifikasi)</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+
+        {selectedIds.length > 0 && (
+          <button type="button" onClick={handleBulkApprove}>
+            Multi-Approve ({selectedIds.length} terpilih)
+          </button>
+        )}
+      </div>
 
       {pesan && <p>{pesan}</p>}
 
-      {requests.length === 0 ? (
+      {filteredRequests.length === 0 ? (
         <p>Tidak ada pengajuan cuti untuk ditampilkan.</p>
       ) : (
-        requests.map((item) => {
-          const canAct =
-            (user.role === "ketdiv" && item.status === "Pending") ||
-            (user.role === "hrd" &&
-              (item.status === "Approved by Leader" || item.status === "Pending"));
+        filteredRequests.map((item) => {
+          const actionable = canApproveOrReject(item);
 
           return (
             <div key={item.cuti_id}>
               <hr />
+              {actionable && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.cuti_id)}
+                    onChange={() => toggleSelect(item.cuti_id)}
+                  />
+                  Pilih untuk Multi-Approve
+                </label>
+              )}
+
               <h3>
                 {item.pemohon_nama} — {item.jenis_cuti}
               </h3>
               <p>Status: {item.status}</p>
-              {item.nama_divisi && <p>Divisi: {item.nama_divisi}</p>}
+              <p>Divisi: {item.nama_divisi || "-"}</p>
+              <p>Sisa Kuota Cuti Pemohon: {item.lama_waktu_cuti ?? "-"} hari</p>
+              <p>
+                Tanggal Pengajuan:{" "}
+                {new Date(item.tanggal_pengajuan).toLocaleDateString("id-ID")}
+              </p>
               <p>
                 Periode:{" "}
                 {new Date(item.mulai_cuti).toLocaleDateString("id-ID")} s/d{" "}
@@ -142,17 +224,25 @@ export default function VerifikasiCutiPage() {
               <p>Alamat Cuti: {item.alamat_cuti}</p>
               <p>Nomor Darurat: {item.nomor_darurat}</p>
               {item.surat_lampiran && <p>Lampiran: {item.surat_lampiran}</p>}
-              {item.catatan_ketdiv && <p>Catatan Ketua Divisi: {item.catatan_ketdiv}</p>}
+
+              <div>
+                <p>
+                  <strong>Info Verifikasi Ketua Divisi:</strong>
+                </p>
+                <p>Ketua Divisi: {item.ketua_nama || "-"}</p>
+                <p>Catatan Ketua Divisi: {item.catatan_ketdiv || "-"}</p>
+              </div>
+
               {item.catatan_hrd && <p>Catatan HRD: {item.catatan_hrd}</p>}
 
-              {canAct && (
+              {actionable && (
                 <div>
-                  <label htmlFor={`note-${item.cuti_id}`}>
-                    Catatan (opsional untuk approve, wajib untuk reject)
+                  <label htmlFor={`note-hrd-${item.cuti_id}`}>
+                    Catatan HRD (opsional untuk approve, wajib untuk reject)
                   </label>
                   <br />
                   <textarea
-                    id={`note-${item.cuti_id}`}
+                    id={`note-hrd-${item.cuti_id}`}
                     value={notesById[item.cuti_id] || ""}
                     onChange={(e) =>
                       setNotesById((prev) => ({
@@ -166,7 +256,7 @@ export default function VerifikasiCutiPage() {
                     type="button"
                     onClick={() => handleAction(item.cuti_id, "approve")}
                   >
-                    Approve
+                    Approve Final
                   </button>
                   <button
                     type="button"

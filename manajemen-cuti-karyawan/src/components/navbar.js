@@ -10,9 +10,9 @@ const allLinks = [
 
   { nama: "Dashboard", path: "/dashboard", roles: ["admin", "ketdiv", "hrd", "user"] },
   { nama: "Profil", path: "/profil", roles: ["admin", "ketdiv", "hrd", "user"] },
-  { nama: "Pengajuan Cuti", path: "/ajukanCuti", roles: ["user", "ketdiv"] },
-  { nama: "Verifikasi", path: "/verifikasi", roles: ["ketdiv"] },
-  { nama: "Persetujuan Final", path: "/persetujuan", roles: ["hrd"] },
+  { nama: "Pengajuan Cuti", path: "/cuti/ajukanCuti", roles: ["user", "ketdiv"] },
+  { nama: "Verifikasi", path: "/cuti/verifikasi", roles: ["ketdiv"] },
+  { nama: "Persetujuan Final", path: "/cuti/persetujuan", roles: ["hrd"] },
   { nama: "Kelola Pengguna", path: "/manageUser", roles: ["admin"] },
 ];
 

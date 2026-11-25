@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function AjukanCutiPage() {
+export default function AjukanCuti() {
   const router = useRouter();
 
   const [user, setUser] = useState(null);
@@ -48,16 +48,41 @@ export default function AjukanCutiPage() {
 
     setUser(parsedUser);
 
-    fetch("/api/cuti/ajukan")
-      .then((res) => res.json())
-      .then((data) => {
+    async function loadColleagues() {
+      try {
+        const res = await fetch("/api/cuti/ajukan");
+        const rawText = await res.text();
+
+        let data = {};
+        try {
+          data = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          console.error(
+            "Expected JSON from /api/cuti/ajukan, received:",
+            rawText.slice(0, 200)
+          );
+          setPesan("Gagal memuat daftar rekan pengganti (respons server bukan JSON).");
+          return;
+        }
+
+        if (!res.ok) {
+          console.error("Failed to load colleagues:", data.message || res.status);
+          setPesan(data.message || "Gagal memuat daftar rekan pengganti.");
+          return;
+        }
+
         if (Array.isArray(data.colleagues)) {
           setColleagues(
             data.colleagues.filter((item) => item.user_id !== parsedUser.user_id)
           );
         }
-      })
-      .catch((err) => console.error(err));
+      } catch (err) {
+        console.error(err);
+        setPesan("Terjadi kesalahan saat memuat daftar rekan pengganti.");
+      }
+    }
+
+    loadColleagues();
   }, [router]);
 
   const totalHari = useMemo(() => {
@@ -134,7 +159,14 @@ export default function AjukanCutiPage() {
         }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        setPesan("Respons server tidak valid saat mengirim pengajuan cuti.");
+        return;
+      }
 
       if (!res.ok) {
         setPesan(data.message || "Gagal mengajukan cuti.");
