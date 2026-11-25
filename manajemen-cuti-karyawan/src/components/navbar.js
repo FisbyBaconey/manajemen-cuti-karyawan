@@ -5,17 +5,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const allLinks = [
-  // When logged out
   { nama: "Login", path: "/", guestOnly: true },
   { nama: "Daftar", path: "/signin", guestOnly: true },
 
-  // When logged in (filtered by role: 'admin', 'ketdiv', 'hrd', 'user')
   { nama: "Dashboard", path: "/dashboard", roles: ["admin", "ketdiv", "hrd", "user"] },
   { nama: "Profil", path: "/profil", roles: ["admin", "ketdiv", "hrd", "user"] },
   { nama: "Pengajuan Cuti", path: "/ajukanCuti", roles: ["user", "ketdiv"] },
   { nama: "Verifikasi", path: "/verifikasi", roles: ["ketdiv"] },
   { nama: "Persetujuan Final", path: "/persetujuan", roles: ["hrd"] },
-  { nama: "Kelola Data", path: "/admin", roles: ["admin"] },
+  { nama: "Kelola Pengguna", path: "/manageUser", roles: ["admin"] },
 ];
 
 export default function Navbar() {

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 
-// GET: list users for handover dropdown (rekan_id)
 export async function GET() {
   try {
     const result = await pool.query(
@@ -17,7 +16,6 @@ export async function GET() {
   }
 }
 
-// POST: submit leave request
 export async function POST(request) {
   try {
     const {
@@ -71,7 +69,6 @@ export async function POST(request) {
 
     const totalDays = Number(jumlah_hari) > 0 ? Number(jumlah_hari) : 1;
 
-    // Check user & quota for Cuti Tahunan
     const userRes = await pool.query(
       "SELECT user_id, lama_waktu_cuti FROM users WHERE user_id = $1",
       [userId]
@@ -122,7 +119,6 @@ export async function POST(request) {
       ]
     );
 
-    // Deduct quota for Cuti Tahunan
     if (jenis_cuti === "Cuti Tahunan") {
       await pool.query(
         "UPDATE users SET lama_waktu_cuti = GREATEST(0, lama_waktu_cuti - $1) WHERE user_id = $2",

@@ -11,7 +11,6 @@ export default function ProfilPage() {
   const [saving, setSaving] = useState(false);
   const [pesan, setPesan] = useState("");
 
-  // Form states
   const [nama, setNama] = useState("");
   const [email, setEmail] = useState("");
   const [telepon, setTelepon] = useState("");

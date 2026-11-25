@@ -58,7 +58,6 @@ export async function POST(request) {
       });
     }
 
-    // Default: user (Karyawan)
     const userRes = await pool.query(
       `SELECT u.nama, u.lama_waktu_cuti, d.nama_divisi
        FROM users u

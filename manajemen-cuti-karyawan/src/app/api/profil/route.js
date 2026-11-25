@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 
-// Load profile data
 export async function POST(request) {
   try {
     const { userId } = await request.json();
@@ -39,7 +38,6 @@ export async function POST(request) {
   }
 }
 
-// Update profile data
 export async function PUT(request) {
   try {
     const { userId, nama, email, telepon, alamat, foto_profil, password } =
