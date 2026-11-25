@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 
+function countWorkingDays(startDate, endDate, setengahHari) {
+  let workingDays = 0;
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) {
+      workingDays += 1;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  if (workingDays === 0) return 0;
+  return setengahHari ? Math.max(0.5, workingDays - 0.5) : workingDays;
+}
+
 export async function GET() {
   try {
     const result = await pool.query(
@@ -24,7 +44,6 @@ export async function POST(request) {
       mulai_cuti,
       selesai_cuti,
       setengah_hari,
-      jumlah_hari,
       alasan,
       rekan_id,
       catatan_tugas,
@@ -50,7 +69,7 @@ export async function POST(request) {
       );
     }
 
-    if (jenis_cuti === "Cuti Sakit" && !surat_lampiran) {
+    if (jenis_cuti === "Cuti Sakit" && !surat_lampiran?.trim()) {
       return NextResponse.json(
         { message: "Cuti Sakit wajib melampirkan surat dokter / lampiran" },
         { status: 400 }
@@ -67,10 +86,55 @@ export async function POST(request) {
       );
     }
 
-    const totalDays = Number(jumlah_hari) > 0 ? Number(jumlah_hari) : 1;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOnly = new Date(startDate);
+    startOnly.setHours(0, 0, 0, 0);
+    const diffDaysFromToday = Math.floor(
+      (startOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (jenis_cuti === "Cuti Tahunan" && diffDaysFromToday < 3) {
+      return NextResponse.json(
+        { message: "Cuti Tahunan harus diajukan minimal H-3 sebelum tanggal mulai cuti" },
+        { status: 400 }
+      );
+    }
+
+    if (jenis_cuti === "Cuti Sakit" && diffDaysFromToday < -3) {
+      return NextResponse.json(
+        { message: "Cuti Sakit maksimal diajukan 3 hari setelah tanggal mulai sakit" },
+        { status: 400 }
+      );
+    }
+
+    const totalDays = countWorkingDays(startDate, endDate, Boolean(setengah_hari));
+    if (totalDays <= 0) {
+      return NextResponse.json(
+        { message: "Rentang tanggal yang dipilih hanya jatuh pada hari libur akhir pekan (Sabtu/Minggu)" },
+        { status: 400 }
+      );
+    }
+
+    const overlapRes = await pool.query(
+      `SELECT cuti_id, jenis_cuti, mulai_cuti, selesai_cuti, status
+       FROM cuti
+       WHERE user_id = $1
+         AND status IN ('Pending', 'Approved by Leader', 'Approved')
+         AND mulai_cuti::date <= $3::date
+         AND selesai_cuti::date >= $2::date`,
+      [userId, startDate.toISOString(), endDate.toISOString()]
+    );
+
+    if (overlapRes.rows.length > 0) {
+      return NextResponse.json(
+        { message: "Tanggal cuti bertabrakan (overlap) dengan pengajuan cuti lain yang masih aktif atau sudah disetujui" },
+        { status: 409 }
+      );
+    }
 
     const userRes = await pool.query(
-      "SELECT user_id, lama_waktu_cuti FROM users WHERE user_id = $1",
+      "SELECT user_id, lama_waktu_cuti, masa_kerja FROM users WHERE user_id = $1",
       [userId]
     );
 

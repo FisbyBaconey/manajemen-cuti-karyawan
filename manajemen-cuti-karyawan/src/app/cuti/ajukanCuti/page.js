@@ -94,16 +94,25 @@ export default function AjukanCuti() {
       return 0;
     }
 
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    let workingDays = 0;
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    const endOnly = new Date(end);
+    endOnly.setHours(0, 0, 0, 0);
 
-    if (setengahHari) {
-      return diffDays === 1 ? 0.5 : diffDays - 0.5;
+    while (cursor <= endOnly) {
+      const day = cursor.getDay();
+      if (day !== 0 && day !== 6) {
+        workingDays += 1;
+      }
+      cursor.setDate(cursor.getDate() + 1);
     }
 
-    return diffDays;
-  }, [mulaiCuti, selesaiCuti, setengahHari]);
-
+    if (workingDays === 0) return 0;
+    return setengahHari ? Math.max(0.5, workingDays - 0.5) : workingDays;
+  },
+  [mulaiCuti, selesaiCuti, setengahHari]);
+  
   function handleReset() {
     setJenisCuti("Cuti Tahunan");
     setSetengahHari(false);
