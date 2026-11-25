@@ -109,7 +109,7 @@ export default function LoginPage() {
         <p className="mt-5 border-t border-slate-100 pt-4 text-center text-xs text-slate-600">
           Belum punya akun?{" "}
           <Link
-            href="/signin"
+            href="/register"
             className="font-semibold text-[#007bff] hover:underline"
           >
             Daftar di sini
